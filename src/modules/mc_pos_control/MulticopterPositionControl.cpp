@@ -477,7 +477,11 @@ void MulticopterPositionControl::start_flight_task()
 		return;
 	}
 
-	if (_vehicle_status.in_transition_mode) {
+	// check if tailsitter and in manual (acro, stabilized) flight --> disable transition flight task
+	const bool vtol_tailsitter_manual = _vehicle_status.is_vtol_tailsitter &&
+					    !_control_mode.flag_control_altitude_enabled && !_control_mode.flag_control_position_enabled;
+
+	if (_vehicle_status.in_transition_mode && !vtol_tailsitter_manual) {
 		should_disable_task = false;
 		FlightTaskError error = _flight_tasks.switchTask(FlightTaskIndex::Transition);
 
@@ -495,6 +499,9 @@ void MulticopterPositionControl::start_flight_task()
 		}
 
 		return;
+
+	} else if (_vehicle_status.in_transition_mode) {
+		_flight_tasks.switchTask(FlightTaskIndex::None);
 	}
 
 	// offboard
