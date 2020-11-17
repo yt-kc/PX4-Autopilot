@@ -311,12 +311,12 @@ void EKF2::Run()
 
 			if (_sensor_selection_sub.copy(&sensor_selection)) {
 				if (_device_id_accel != sensor_selection.accel_device_id) {
-					_imu_bias_reset_request = true;
+					_ekf.resetAccelBias();
 					_device_id_accel = sensor_selection.accel_device_id;
 				}
 
 				if (_device_id_gyro != sensor_selection.gyro_device_id) {
-					_imu_bias_reset_request = true;
+					_ekf.resetGyroBias();
 					_device_id_gyro = sensor_selection.gyro_device_id;
 				}
 			}
@@ -325,11 +325,6 @@ void EKF2::Run()
 
 	if (imu_updated) {
 		const hrt_abstime now = imu_sample_new.time_us;
-
-		// attempt reset until successful
-		if (_imu_bias_reset_request) {
-			_imu_bias_reset_request = !_ekf.reset_imu_bias();
-		}
 
 		// push imu data into estimator
 		_ekf.setIMUData(imu_sample_new);
@@ -875,55 +870,36 @@ void EKF2::PublishSensorBias(const hrt_abstime &timestamp)
 	const Vector3f gyro_bias{_ekf.getGyroBias()};
 	const Vector3f accel_bias{_ekf.getAccelBias()};
 
-	float states[24];
-	_ekf.getStateAtFusionHorizonAsVector().copyTo(states);
-	const Vector3f mag_bias {
-		states[19] + _param_ekf2_magbias_x.get(),
-		states[20] + _param_ekf2_magbias_y.get(),
-		states[21] + _param_ekf2_magbias_z.get(),
-	};
+	// the saved mag bias EKF2_MAGBIAS_{X,Y,Z} is subtracted from sensor mag before going into ecl/EKF
+	const Vector3f mag_cal{_param_ekf2_magbias_x.get(), _param_ekf2_magbias_y.get(), _param_ekf2_magbias_z.get()};
+	const Vector3f mag_bias{_ekf.getMagBias() + mag_cal};
 
 	// only publish on change
 	if ((gyro_bias - _last_gyro_bias).longerThan(0.001f)
 	    || (accel_bias - _last_accel_bias).longerThan(0.001f)
 	    || (mag_bias - _last_mag_bias).longerThan(0.001f)) {
 
-		float covariances[24];
-		_ekf.covariances_diagonal().copyTo(covariances);
-
 		// take device ids from sensor_selection_s if not using specific vehicle_imu_s
 		if (_device_id_gyro != 0) {
 			bias.gyro_device_id = _device_id_gyro;
-
 			gyro_bias.copyTo(bias.gyro_bias);
-
-			bias.gyro_bias_variance[0] = covariances[10];
-			bias.gyro_bias_variance[1] = covariances[11];
-			bias.gyro_bias_variance[2] = covariances[12];
+			_ekf.getGyroBiasVariance().copyTo(bias.gyro_bias_variance);
 
 			_last_gyro_bias = gyro_bias;
 		}
 
 		if ((_device_id_accel != 0) && !(_param_ekf2_aid_mask.get() & MASK_INHIBIT_ACC_BIAS)) {
 			bias.accel_device_id = _device_id_accel;
-
 			accel_bias.copyTo(bias.accel_bias);
-
-			bias.accel_bias_variance[0] = covariances[13];
-			bias.accel_bias_variance[1] = covariances[14];
-			bias.accel_bias_variance[2] = covariances[15];
+			_ekf.getAccelBiasVariance().copyTo(bias.accel_bias_variance);
 
 			_last_accel_bias = accel_bias;
 		}
 
 		if (_device_id_mag != 0) {
 			bias.mag_device_id = _device_id_mag;
-
 			mag_bias.copyTo(bias.mag_bias);
-
-			bias.mag_bias_variance[0] = covariances[19];
-			bias.mag_bias_variance[1] = covariances[20];
-			bias.mag_bias_variance[2] = covariances[21];
+			_ekf.getMagBiasVariance().copyTo(bias.mag_bias_variance);
 
 			_last_mag_bias = mag_bias;
 		}
@@ -1430,25 +1406,22 @@ void EKF2::UpdateMagCalibration(const hrt_abstime &timestamp)
 			// Declare all bias estimates invalid if any variances are out of range
 			bool all_estimates_invalid = false;
 
-			float covariances[24];
-			_ekf.covariances_diagonal().copyTo(covariances);
+			const Vector3f mag_bias_variance{_ekf.getMagBiasVariance()};
 
 			for (uint8_t axis_index = 0; axis_index <= 2; axis_index++) {
-				if (covariances[axis_index + 19] < min_var_allowed
-				    || covariances[axis_index + 19] > max_var_allowed) {
+				if (mag_bias_variance(axis_index) < min_var_allowed
+				    || mag_bias_variance(axis_index) > max_var_allowed) {
 					all_estimates_invalid = true;
 				}
 			}
 
 			// Store valid estimates and their associated variances
 			if (!all_estimates_invalid) {
-
-				float states[24];
-				_ekf.getStateAtFusionHorizonAsVector().copyTo(states);
+				const Vector3f mag_bias{_ekf.getMagBias()};
 
 				for (uint8_t axis_index = 0; axis_index <= 2; axis_index++) {
-					_last_valid_mag_cal[axis_index] = states[axis_index + 19];
-					_last_valid_variance[axis_index] = covariances[axis_index + 19];
+					_last_valid_mag_cal[axis_index] = mag_bias(axis_index);
+					_last_valid_variance[axis_index] = mag_bias_variance(axis_index);
 				}
 
 				_valid_cal_available = true;

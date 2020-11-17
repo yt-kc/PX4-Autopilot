@@ -192,8 +192,6 @@ private:
 	uint64_t _gps_alttitude_ellipsoid_previous_timestamp{0}; ///< storage for previous timestamp to compute dt
 	float   _wgs84_hgt_offset = 0;  ///< height offset between AMSL and WGS84
 
-	bool _imu_bias_reset_request{false};
-
 	uint32_t _device_id_accel{0};
 	uint32_t _device_id_baro{0};
 	uint32_t _device_id_gyro{0};
