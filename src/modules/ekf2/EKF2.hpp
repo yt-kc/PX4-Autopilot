@@ -178,8 +178,8 @@ private:
 	hrt_abstime _last_magcal_us = 0;	///< last time the EKF was operating a mode that estimates magnetomer biases (uSec)
 	hrt_abstime _total_cal_time_us = 0;	///< accumulated calibration time since the last save
 
-	float _last_valid_mag_cal[3] = {};	///< last valid XYZ magnetometer bias estimates (Gauss)
-	float _last_valid_variance[3] = {};	///< variances for the last valid magnetometer XYZ bias estimates (Gauss**2)
+	Vector3f _last_valid_mag_cal{};	///< last valid XYZ magnetometer bias estimates (Gauss)
+	Vector3f _last_valid_variance{};	///< variances for the last valid magnetometer XYZ bias estimates (Gauss**2)
 	bool _valid_cal_available{false};	///< true when an unsaved valid calibration for the XYZ magnetometer bias is available
 
 	// Used to control saving of mag declination to be used on next startup

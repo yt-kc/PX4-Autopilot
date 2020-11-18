@@ -215,12 +215,12 @@ void EKF2::update_mag_bias(Param &mag_bias_param, int axis_index)
 {
 	// calculate weighting using ratio of variances and update stored bias values
 	const float weighting = constrain(_param_ekf2_magb_vref.get() / (_param_ekf2_magb_vref.get() +
-					  _last_valid_variance[axis_index]), 0.0f, _param_ekf2_magb_k.get());
+					  _last_valid_variance(axis_index)), 0.0f, _param_ekf2_magb_k.get());
 	const float mag_bias_saved = mag_bias_param.get();
 
-	_last_valid_mag_cal[axis_index] = weighting * _last_valid_mag_cal[axis_index] + mag_bias_saved;
+	_last_valid_mag_cal(axis_index) = weighting * _last_valid_mag_cal(axis_index) + mag_bias_saved;
 
-	mag_bias_param.set(_last_valid_mag_cal[axis_index]);
+	mag_bias_param.set(_last_valid_mag_cal(axis_index));
 
 	// save new parameters unless in multi-instance mode
 	if (!_multi_mode) {
@@ -1404,26 +1404,14 @@ void EKF2::UpdateMagCalibration(const hrt_abstime &timestamp)
 			const float min_var_allowed = 0.01f * _param_ekf2_magb_vref.get();
 
 			// Declare all bias estimates invalid if any variances are out of range
-			bool all_estimates_invalid = false;
-
 			const Vector3f mag_bias_variance{_ekf.getMagBiasVariance()};
-
-			for (uint8_t axis_index = 0; axis_index <= 2; axis_index++) {
-				if (mag_bias_variance(axis_index) < min_var_allowed
-				    || mag_bias_variance(axis_index) > max_var_allowed) {
-					all_estimates_invalid = true;
-				}
-			}
+			const bool all_estimates_invalid = (mag_bias_variance.min() < min_var_allowed)
+							   && (mag_bias_variance.max() > max_var_allowed);
 
 			// Store valid estimates and their associated variances
 			if (!all_estimates_invalid) {
-				const Vector3f mag_bias{_ekf.getMagBias()};
-
-				for (uint8_t axis_index = 0; axis_index <= 2; axis_index++) {
-					_last_valid_mag_cal[axis_index] = mag_bias(axis_index);
-					_last_valid_variance[axis_index] = mag_bias_variance(axis_index);
-				}
-
+				_last_valid_mag_cal = _ekf.getMagBias();
+				_last_valid_variance = mag_bias_variance;
 				_valid_cal_available = true;
 			}
 		}
