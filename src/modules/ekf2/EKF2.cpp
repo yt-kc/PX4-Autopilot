@@ -1406,7 +1406,7 @@ void EKF2::UpdateMagCalibration(const hrt_abstime &timestamp)
 			// Declare all bias estimates invalid if any variances are out of range
 			const Vector3f mag_bias_variance{_ekf.getMagBiasVariance()};
 			const bool all_estimates_invalid = (mag_bias_variance.min() < min_var_allowed)
-							   && (mag_bias_variance.max() > max_var_allowed);
+							   || (mag_bias_variance.max() > max_var_allowed);
 
 			// Store valid estimates and their associated variances
 			if (!all_estimates_invalid) {
