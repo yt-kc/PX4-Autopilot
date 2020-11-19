@@ -10,7 +10,8 @@ on:
 
 jobs:
   build:
-    runs-on: macos-10.15
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       matrix:
         config: [
@@ -24,6 +25,8 @@ jobs:
         token: ${{secrets.ACCESS_TOKEN}}
 
     - name: setup
+      run: ./Tools/setup/macos.sh
+    - name: setup (check)
       run: ./Tools/setup/macos.sh
 
     - name: Prepare ccache timestamp
