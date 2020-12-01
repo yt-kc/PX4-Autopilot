@@ -1877,6 +1877,23 @@ Commander::run()
 						tune_mission_ok(true);
 					}
 				}
+
+				// Reset main state to loiter or auto-mission after takeoff is completed.
+				// Sometimes, the mission result topic is outdated and the mission is still signaled
+				// as finished even though we only just started with the takeoff. Therefore, we also
+				// check the timestamp of the mission_result topic.
+				if (armed.armed && !_land_detector.landed
+				    && (status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_TAKEOFF)
+				    && (mission_result.timestamp >= status.nav_state_timestamp)
+				    && mission_result.finished) {
+
+					if ((_param_takeoff_finished_action.get() == 1) && mission_result.valid) {
+						main_state_transition(status, commander_state_s::MAIN_STATE_AUTO_MISSION, status_flags, &_internal_state);
+
+					} else {
+						main_state_transition(status, commander_state_s::MAIN_STATE_AUTO_LOITER, status_flags, &_internal_state);
+					}
+				}
 			}
 		}
 
@@ -2271,25 +2288,6 @@ Commander::run()
 					status.engine_failure = false;
 					_status_changed = true;
 				}
-			}
-		}
-
-		/* Reset main state to loiter or auto-mission after takeoff is completed.
-		 * Sometimes, the mission result topic is outdated and the mission is still signaled
-		 * as finished even though we only just started with the takeoff. Therefore, we also
-		 * check the timestamp of the mission_result topic. */
-		if (_internal_state.main_state == commander_state_s::MAIN_STATE_AUTO_TAKEOFF
-		    && (_mission_result_sub.get().timestamp >= _internal_state.timestamp)
-		    && _mission_result_sub.get().finished) {
-
-			const bool mission_available = (_mission_result_sub.get().timestamp > _boot_timestamp)
-						       && (_mission_result_sub.get().instance_count > 0) && _mission_result_sub.get().valid;
-
-			if ((_param_takeoff_finished_action.get() == 1) && mission_available) {
-				main_state_transition(status, commander_state_s::MAIN_STATE_AUTO_MISSION, status_flags, &_internal_state);
-
-			} else {
-				main_state_transition(status, commander_state_s::MAIN_STATE_AUTO_LOITER, status_flags, &_internal_state);
 			}
 		}
 
